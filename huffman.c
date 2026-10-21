@@ -3,6 +3,8 @@
 #include <string.h>
 
 #define MODO_BYTES 0
+#define MODO_DELTA 1
+#define TAM_CABECALHO_WAV 44
 
 typedef struct Nodo {
   unsigned char byte;
@@ -52,6 +54,40 @@ int gravar_arquivo(const char *nome, unsigned char *dados, long n) {
 
   fclose(f);
   return 1;
+}
+
+int eh_wav_simples(unsigned char *dados, long n) {
+  if (n < TAM_CABECALHO_WAV) return 0;
+  if (memcmp(dados, "RIFF", 4) != 0 || memcmp(dados + 8, "WAVE", 4) != 0) return 0;
+  if (memcmp(dados + 36, "data", 4) != 0) return 0;
+  return dados[22] == 1 && dados[34] == 16;
+}
+
+/* unsigned para a subtracao dar a volta em 16 bits sem overflow */
+unsigned short ler_amostra(unsigned char *dados, long k) {
+  unsigned char *p = dados + TAM_CABECALHO_WAV + 2 * k;
+  return (unsigned short)(p[0] | (p[1] << 8));
+}
+
+void gravar_amostra(unsigned char *dados, long k, unsigned short valor) {
+  unsigned char *p = dados + TAM_CABECALHO_WAV + 2 * k;
+  p[0] = valor & 0xFF;
+  p[1] = valor >> 8;
+}
+
+/* de tras pra frente, para cada subtracao usar a amostra anterior original */
+void aplicar_delta(unsigned char *dados, long n) {
+  long m = (n - TAM_CABECALHO_WAV) / 2;
+
+  for (long k = m - 1; k > 0; k--)
+    gravar_amostra(dados, k, ler_amostra(dados, k) - ler_amostra(dados, k - 1));
+}
+
+void desfazer_delta(unsigned char *dados, long n) {
+  long m = (n - TAM_CABECALHO_WAV) / 2;
+
+  for (long k = 1; k < m; k++)
+    gravar_amostra(dados, k, ler_amostra(dados, k) + ler_amostra(dados, k - 1));
 }
 
 void contar_frequencias(unsigned char *dados, long n, long freq[256]) {
@@ -134,6 +170,15 @@ int comprimir(const char *entrada, const char *saida, int modo) {
 
   n = ler_arquivo(entrada, &dados);
   if (n < 0) return -1;
+
+  if (modo == MODO_DELTA) {
+    if (!eh_wav_simples(dados, n)) {
+      printf("  %s: o modo cd exige WAV PCM mono de 16 bits com cabecalho de 44 bytes\n", entrada);
+      free(dados);
+      return -1;
+    }
+    aplicar_delta(dados, n);
+  }
 
   contar_frequencias(dados, n, freq);
   raiz = montar_arvore(freq);
@@ -224,6 +269,8 @@ int descomprimir(const char *entrada, const char *saida) {
     return -1;
   }
 
+  if (modo == MODO_DELTA) desfazer_delta(dados, n);
+
   if (gravar_arquivo(saida, dados, n) < 0) {
     free(dados);
     return -1;
@@ -236,13 +283,15 @@ int descomprimir(const char *entrada, const char *saida) {
 
 int main(int argc, char *argv[]) {
   if (argc != 4) {
-    printf("uso: %s c|d <entrada> <saida>\n", argv[0]);
-    printf("  c  comprime com Huffman sobre bytes\n");
-    printf("  d  descomprime\n");
+    printf("uso: %s c|cd|d <entrada> <saida>\n", argv[0]);
+    printf("  c   comprime com Huffman sobre bytes\n");
+    printf("  cd  comprime um WAV com delta entre amostras + Huffman\n");
+    printf("  d   descomprime\n");
     return 1;
   }
 
   if (strcmp(argv[1], "c") == 0) return comprimir(argv[2], argv[3], MODO_BYTES) == 1 ? 0 : 1;
+  if (strcmp(argv[1], "cd") == 0) return comprimir(argv[2], argv[3], MODO_DELTA) == 1 ? 0 : 1;
   if (strcmp(argv[1], "d") == 0) return descomprimir(argv[2], argv[3]) == 1 ? 0 : 1;
 
   printf("modo desconhecido: %s\n", argv[1]);
