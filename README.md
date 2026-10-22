@@ -123,17 +123,13 @@ supera o ganho).
 ## Fontes
 
 - Huffman: Programiz, "Huffman Coding",
-  <https://www.programiz.com/dsa/huffman-coding>; Paulo Feofiloff (IME-USP),
-  "Código de Huffman",
-  <https://www.ime.usp.br/~pf/estruturas-de-dados/aulas/huffman.html>.
-- Compressão de dados em geral: Paulo Feofiloff (IME-USP), "Compressão de
-  dados", <https://www.ime.usp.br/~pf/estruturas-de-dados/aulas/compress.html>.
-- Delta no áudio: inspirado na predição linear do FLAC, "FLAC format",
-  <https://xiph.org/flac/format.html>.
-- Formato WAV: "WAVE PCM soundfile format",
-  <http://soundfile.sapp.org/doc/WaveFormat/>.
-- Implementação: escrita para este trabalho, seguindo a estrutura de árvore e
-  geração de códigos descrita nas fontes de Huffman acima.
+  <https://www.programiz.com/dsa/huffman-coding>. A construção da árvore, os
+  códigos (0 à esquerda, 1 à direita) e a decodificação percorrendo a árvore
+  são os mesmos; lá os dois menores saem de um heap, aqui de uma busca linear.
+- Delta no áudio: inspirado no preditor fixo de ordem 1 do FLAC, que prevê
+  cada amostra como igual à anterior e guarda a diferença. RFC 9639, seção
+  9.2.5, <https://www.rfc-editor.org/rfc/rfc9639.html>.
+- Implementação: escrita para este trabalho.
 
 ## Uso de IA
 
